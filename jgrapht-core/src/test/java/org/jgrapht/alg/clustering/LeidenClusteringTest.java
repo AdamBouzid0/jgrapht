@@ -15,6 +15,8 @@
  *
  * SPDX-License-Identifier: EPL-2.0 OR LGPL-2.1-or-later
  */
+
+
 package org.jgrapht.alg.clustering;
 
 import org.jgrapht.Graph;
@@ -24,10 +26,8 @@ import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.AsSubgraph;
 import org.jgrapht.alg.connectivity.ConnectivityInspector;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Assumptions;
 
 import java.util.*;
-
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -459,29 +459,18 @@ public class LeidenClusteringTest {
         }
 
         double resolution = 0.1; // encourage merging into larger communities
-        Optional<Set<Integer>> bad = Optional.empty();
-        int usedSeed = -1;
-        for (int seed = 0; seed < 200000 && bad.isEmpty(); seed++) {
-            LouvainClustering<Integer, DefaultWeightedEdge> louvain =
-                    new LouvainClustering<>(g, resolution, new Random(seed));
-            List<Set<Integer>> louvainClusters = louvain.getClustering().getClusters();
-            bad = louvainClusters.stream().filter(c -> !isConnected(g, c)).findFirst();
-            if (bad.isPresent()) {
-                usedSeed = seed;
-            }
+        // Louvain could produce a disconnected community on this graph; ensure Leiden stays connected
+        int[] seeds = {0, 1, 2, 3, 4, 42, 4242};
+        for (int seed : seeds) {
+            LeidenClustering<Integer, DefaultWeightedEdge> leiden =
+                    new LeidenClustering<>(g, resolution, new Random(seed), LeidenClustering.Quality.MODULARITY);
+            List<Set<Integer>> leidenClusters = leiden.getClustering().getClusters();
+
+            assertTrue(leidenClusters.stream().allMatch(c -> isConnected(g, c)),
+                    "Leiden should return only connected communities");
+            assertFalse(leidenClusters.stream().anyMatch(c -> c.contains(1) && c.contains(4)),
+                    "Leiden should split the disconnected Louvain community");
         }
-
-        Assumptions.assumeTrue(bad.isPresent(),
-                "Did not find a disconnected Louvain community within seed search (200000 seeds)");
-
-        LeidenClustering<Integer, DefaultWeightedEdge> leiden =
-                new LeidenClustering<>(g, resolution, new Random(usedSeed), LeidenClustering.Quality.MODULARITY);
-        List<Set<Integer>> leidenClusters = leiden.getClustering().getClusters();
-
-        assertTrue(leidenClusters.stream().allMatch(c -> isConnected(g, c)),
-                "Leiden should return only connected communities");
-        assertFalse(leidenClusters.stream().anyMatch(c -> c.contains(1) && c.contains(4)),
-                "Leiden should split the disconnected Louvain community");
     }
 
     private static <V, E> boolean isConnected(Graph<V, E> g, Set<V> vertices) {
