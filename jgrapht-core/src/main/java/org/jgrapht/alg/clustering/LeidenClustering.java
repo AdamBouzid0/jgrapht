@@ -331,11 +331,11 @@ public class LeidenClustering<V, E> implements ClusteringAlgorithm<V>
                 shuffle(order, rng);
 
                 for (int u : order) {
-                    double k_u = strength[u];
-                    if (k_u < EPS) continue;
+                    double ku = strength[u];
+                    if (ku < EPS) continue;
 
                     int cu = comm[u];
-                    commStrength[cu] -= k_u;
+                    commStrength[cu] -= ku;
 
                     // collect weight from u to each community
                     Map<Integer, Double> weightToComm = new HashMap<>();
@@ -354,19 +354,19 @@ public class LeidenClustering<V, E> implements ClusteringAlgorithm<V>
 
                     for (Entry<Integer, Double> e : weightToComm.entrySet()) {
                         int c = e.getKey();
-                        double k_u_in = e.getValue();
+                        double kuIn = e.getValue();
 
-                        double gain = qualityGain(q, gamma, k_u, k_u_in, commStrength[c]);
+                        double gain = qualityGain(q, gamma, ku, kuIn, commStrength[c]);
 
                         if (gain >= bestGain - EPS ||
-                            (Math.abs(gain - bestGain) <= EPS && k_u_in > tieBreaker + EPS)) {
+                            (Math.abs(gain - bestGain) <= EPS && kuIn > tieBreaker + EPS)) {
                             bestC = c;
                             bestGain = gain;
-                            tieBreaker = k_u_in;
+                            tieBreaker = kuIn;
                         }
                     }
 
-                    commStrength[bestC] += k_u;
+                    commStrength[bestC] += ku;
                     if (bestC != cu) {
                         comm[u] = bestC;
                         moved = true;
@@ -382,17 +382,17 @@ public class LeidenClustering<V, E> implements ClusteringAlgorithm<V>
          *
          * @param q quality metric
          * @param gamma resolution
-         * @param k_u strength of node u
-         * @param k_u_in weight from u to C
+         * @param ku strength of node u
+         * @param kuIn weight from u to C
          * @param sumC strength of community C
          * @return quality improvement (ΔQ)
          */
-        private double qualityGain(Quality q, double gamma, double k_u, double k_u_in, double sumC)
+        private double qualityGain(Quality q, double gamma, double ku, double kuIn, double sumC)
         {
             if (q == Quality.MODULARITY)
-                return k_u_in - gamma * (k_u * sumC) / Math.max(m2, EPS);
+                return kuIn - gamma * (ku * sumC) / Math.max(m2, EPS);
             else
-                return k_u_in - gamma * k_u; // CPM
+                return kuIn - gamma * ku; // CPM
         }
 
         /* --------------------------- Phase 2: Refinement --------------------------- */
@@ -461,13 +461,13 @@ public class LeidenClustering<V, E> implements ClusteringAlgorithm<V>
         AggregateResult aggregate(int[] comm)
         {
             int[] relabeled = relabelCommunities(comm);
-            int C = 0;
-            for (int x : relabeled) C = Math.max(C, x + 1);
+            int c = 0;
+            for (int x : relabeled) c = Math.max(c, x + 1);
 
-            List<Map<Integer, Double>> newAdj = new ArrayList<>(C);
-            for (int i = 0; i < C; i++) newAdj.add(new HashMap<>());
+            List<Map<Integer, Double>> newAdj = new ArrayList<>(c);
+            for (int i = 0; i < c; i++) newAdj.add(new HashMap<>());
 
-            double[] newStrength = new double[C];
+            double[] newStrength = new double[c];
             for (int i = 0; i < relabeled.length; i++)
                 newStrength[relabeled[i]] += strength[i];
 
@@ -489,7 +489,7 @@ public class LeidenClustering<V, E> implements ClusteringAlgorithm<V>
                 }
             }
 
-            return new AggregateResult(new Level(newAdj, newStrength, m2), C);
+            return new AggregateResult(new Level(newAdj, newStrength, m2), c);
         }
 
         /* --------------------------- Utility Methods --------------------------- */
@@ -506,11 +506,11 @@ public class LeidenClustering<V, E> implements ClusteringAlgorithm<V>
         {
             if (comm.length == 0 || m2 < EPS) return 0;
 
-            int C = 0;
-            for (int x : comm) C = Math.max(C, x + 1);
+            int c = 0;
+            for (int x : comm) c = Math.max(c, x + 1);
 
-            double[] sumStrength = new double[C];
-            double[] internal = new double[C];
+            double[] sumStrength = new double[c];
+            double[] internal = new double[c];
 
             for (int i = 0; i < comm.length; i++) {
                 int ci = comm[i];
@@ -524,15 +524,15 @@ public class LeidenClustering<V, E> implements ClusteringAlgorithm<V>
 
             double qsum = 0;
             if (q == Quality.MODULARITY) {
-                for (int c = 0; c < C; c++) {
-                    double in = internal[c];
-                    double tot = sumStrength[c];
+                for (int i = 0; i < c; i++) {
+                    double in = internal[i];
+                    double tot = sumStrength[i];
                     qsum += (in / m2) - gamma * (tot / m2) * (tot / m2);
                 }
             } else { // CPM
-                for (int c = 0; c < C; c++) {
-                    double in = internal[c];
-                    double tot = sumStrength[c];
+                for (int i = 0; i < c; i++) {
+                    double in = internal[i];
+                    double tot = sumStrength[i];
                     qsum += in - gamma * tot / 2.0;
                 }
             }
